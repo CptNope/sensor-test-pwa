@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Sensor Test PWA</title>
+  <title>Sensor + Media Test PWA</title>
   <link rel="manifest" href="manifest.json">
   <style>
     body { font-family: sans-serif; padding:1rem; }
-    .sensor { margin-bottom:1rem; }
-    button { margin-right: 0.5rem; }
+    section { margin-bottom:2rem; border-bottom:1px solid #ccc; padding-bottom:1rem; }
+    h2 { margin-top:1.5rem; }
+    button { margin:0.25rem; }
     .status { font-weight: bold; }
     #install-container {
       position: fixed;
@@ -25,125 +26,188 @@
       border-radius: 4px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
+    video, audio { display: block; margin-top:0.5rem; max-width: 100%; }
   </style>
 </head>
 <body>
-  <h1>Sensor Test</h1>
+  <h1>Sensor + Media Test PWA</h1>
 
-  <div id="accelerometer" class="sensor">
+  <!-- ────────── SENSORS ────────── -->
+  <section id="accelerometer" class="sensor">
     <h2>Accelerometer</h2>
     <div>Status: <span class="status">—</span></div>
     <div>Reading: <span class="reading">—</span></div>
     <button class="btn-request">Enable</button>
-  </div>
+  </section>
 
-  <div id="gyroscope" class="sensor">
+  <section id="gyroscope" class="sensor">
     <h2>Gyroscope</h2>
     <div>Status: <span class="status">—</span></div>
     <div>Reading: <span class="reading">—</span></div>
     <button class="btn-request">Enable</button>
-  </div>
+  </section>
 
-  <!-- Install button container -->
+  <!-- ────────── CAMERA & VIDEO ────────── -->
+  <section id="media-section">
+    <h2>Camera & Video</h2>
+    <video id="camera-preview" autoplay playsinline muted width="240"></video>
+    <div>
+      <button id="btn-start-camera">Start Camera</button>
+      <button id="btn-stop-camera" disabled>Stop Camera</button>
+    </div>
+    <div>
+      <button id="btn-start-video-record" disabled>Start Video Recording</button>
+      <button id="btn-stop-video-record" disabled>Stop Video Recording</button>
+    </div>
+    <video id="video-playback" controls></video>
+  </section>
+
+  <!-- ────────── AUDIO ────────── -->
+  <section id="audio-section">
+    <h2>Microphone (Audio Only)</h2>
+    <div>
+      <button id="btn-start-audio-record">Start Audio Recording</button>
+      <button id="btn-stop-audio-record" disabled>Stop Audio Recording</button>
+    </div>
+    <audio id="audio-playback" controls></audio>
+  </section>
+
+  <!-- ────────── PWA INSTALL BUTTON ────────── -->
   <div id="install-container">
     <button id="btn-install">Install App</button>
   </div>
 
   <script>
-  // helper to update UI
+  // ──────── Sensor Helpers ────────
   function update(elem, { status, reading }) {
-    if (status !== undefined) elem.querySelector('.status').textContent = status;
+    if (status  !== undefined) elem.querySelector('.status').textContent  = status;
     if (reading !== undefined) elem.querySelector('.reading').textContent = reading;
   }
-
-  // generic sensor setup
-  async function setupSensor(sensorName, SensorConstructor, eventNameFallback) {
-    const container = document.getElementById(sensorName);
+  async function setupSensor(id, ConstructorName, fallbackEvent) {
+    const container = document.getElementById(id);
     const btn = container.querySelector('.btn-request');
+    const hasGeneric  = ConstructorName in window;
+    const hasFallback = fallbackEvent in window;
 
-    // feature-detect
-    const hasGeneric = SensorConstructor in window;
-    const hasFallback = eventNameFallback in window;
-
-    update(container, {
-      status: hasGeneric || hasFallback ? 'Supported' : 'Not supported'
-    });
-    if (!hasGeneric && !hasFallback) {
-      btn.disabled = true;
-      return;
-    }
+    update(container, { status: hasGeneric||hasFallback ? 'Supported' : 'Not supported' });
+    if (!hasGeneric && !hasFallback) { btn.disabled = true; return; }
 
     btn.addEventListener('click', async () => {
       btn.disabled = true;
       try {
-        // Permissions API (optional)
         if (navigator.permissions && hasGeneric) {
-          const perm = await navigator.permissions.query({ name: sensorName });
-          if (perm.state === 'denied') {
-            update(container, { status: 'Permission denied' });
-            return;
-          }
+          let p = await navigator.permissions.query({ name: id });
+          if (p.state==='denied') { update(container,{status:'Permission denied'}); return; }
         }
-
         if (hasGeneric) {
-          // Generic Sensor API
-          const sensor = new window[SensorConstructor]();
+          const sensor = new window[ConstructorName]();
           sensor.addEventListener('reading', () => {
-            const vals = [sensor.x, sensor.y, sensor.z].map(n => n.toFixed(2)).join(', ');
-            update(container, { status: 'Working', reading: vals });
+            const coords = [sensor.x,sensor.y,sensor.z].map(n=>n.toFixed(2)).join(', ');
+            update(container,{status:'Working',reading:coords});
           });
           sensor.start();
         } else {
-          // Fallback: DeviceMotionEvent or DeviceOrientationEvent
-          window.addEventListener(eventNameFallback, ev => {
+          window.addEventListener(fallbackEvent, ev => {
             let vals;
-            if (eventNameFallback === 'devicemotion') {
-              vals = [ev.acceleration.x, ev.acceleration.y, ev.acceleration.z]
-                .map(n => n ? n.toFixed(2) : '0.00').join(', ');
+            if (fallbackEvent==='devicemotion') {
+              vals = [ev.acceleration.x,ev.acceleration.y,ev.acceleration.z]
+                .map(n=>n? n.toFixed(2):'0.00').join(', ');
             } else {
-              vals = [ev.alpha, ev.beta, ev.gamma]
-                .map(n => n.toFixed(2)).join(', ');
+              vals = [ev.alpha,ev.beta,ev.gamma].map(n=>n.toFixed(2)).join(', ');
             }
-            update(container, { status: 'Working (fallback)', reading: vals });
-          }, { once: true });
-          update(container, { status: 'Working (fallback)' });
+            update(container,{status:'Working (fallback)',reading:vals});
+          }, { once:true });
+          update(container,{status:'Working (fallback)'});
         }
-      } catch (err) {
-        update(container, { status: 'Error' });
-        console.error(err);
+      } catch(e) {
+        update(container,{status:'Error'}); console.error(e);
       }
     });
   }
 
-  // PWA install prompt handling
+  // ──────── Media Helpers ────────
+  let cameraStream, videoRecorder, videoChunks=[];
+  const previewEl     = document.getElementById('camera-preview'),
+        btnStartCam   = document.getElementById('btn-start-camera'),
+        btnStopCam    = document.getElementById('btn-stop-camera'),
+        btnStartVid   = document.getElementById('btn-start-video-record'),
+        btnStopVid    = document.getElementById('btn-stop-video-record'),
+        playbackVid   = document.getElementById('video-playback');
+
+  btnStartCam.addEventListener('click', async () => {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+    previewEl.srcObject = cameraStream;
+    btnStartCam.disabled = true; btnStopCam.disabled = false;
+    btnStartVid.disabled = false;
+  });
+  btnStopCam.addEventListener('click', () => {
+    cameraStream.getTracks().forEach(t=>t.stop());
+    previewEl.srcObject = null;
+    btnStartCam.disabled=false; btnStopCam.disabled=true;
+    btnStartVid.disabled=true; btnStopVid.disabled=true;
+  });
+
+  btnStartVid.addEventListener('click', () => {
+    videoChunks = [];
+    videoRecorder = new MediaRecorder(cameraStream);
+    videoRecorder.ondataavailable = e => videoChunks.push(e.data);
+    videoRecorder.onstop = () => {
+      const blob = new Blob(videoChunks, { type: 'video/webm' });
+      playbackVid.src = URL.createObjectURL(blob);
+    };
+    videoRecorder.start();
+    btnStartVid.disabled=true; btnStopVid.disabled=false;
+  });
+  btnStopVid.addEventListener('click', () => {
+    videoRecorder.stop();
+    btnStopVid.disabled=true;
+  });
+
+  let audioRecorder, audioChunks=[];
+  const btnStartAud = document.getElementById('btn-start-audio-record'),
+        btnStopAud  = document.getElementById('btn-stop-audio-record'),
+        playbackAud = document.getElementById('audio-playback');
+
+  btnStartAud.addEventListener('click', async () => {
+    const audioStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+    audioRecorder = new MediaRecorder(audioStream);
+    audioChunks = [];
+    audioRecorder.ondataavailable = e => audioChunks.push(e.data);
+    audioRecorder.onstop = () => {
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      playbackAud.src = URL.createObjectURL(blob);
+    };
+    audioRecorder.start();
+    btnStartAud.disabled=true; btnStopAud.disabled=false;
+  });
+  btnStopAud.addEventListener('click', () => {
+    audioRecorder.stop();
+    btnStopAud.disabled=true;
+    btnStartAud.disabled=false;
+  });
+
+  // ──────── PWA Install ────────
   let deferredPrompt;
   const installBtn = document.getElementById('btn-install');
-
   window.addEventListener('beforeinstallprompt', e => {
-    // Prevent the mini-infobar from appearing on mobile
     e.preventDefault();
     deferredPrompt = e;
     installBtn.style.display = 'inline-block';
   });
-
   installBtn.addEventListener('click', async () => {
     installBtn.disabled = true;
-    if (!deferredPrompt) return;
     deferredPrompt.prompt();
-    const choice = await deferredPrompt.userChoice;
-    console.log('Install outcome:', choice.outcome);
+    await deferredPrompt.userChoice;
     deferredPrompt = null;
     installBtn.style.display = 'none';
   });
 
-  // register service worker
+  // ──────── SW Registration & Sensor Setup ────────
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./service-worker.js');
   }
-
-  // wire up accelerometer & gyroscope
-  setupSensor('accelerometer', 'Accelerometer', 'devicemotion');
-  setupSensor('gyroscope',     'Gyroscope',     'deviceorientation');
+  setupSensor('accelerometer','Accelerometer','devicemotion');
+  setupSensor('gyroscope','Gyroscope','deviceorientation');
   </script>
 </body>
 </html>

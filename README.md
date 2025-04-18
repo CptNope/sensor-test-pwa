@@ -42,7 +42,7 @@ A minimal Progressive Web App (PWA) that demonstrates:
 
 ## Demo
 
-> **Live URL**: https://<your-github-username>.github.io/sensor-test-pwa/
+> **Live URL**: https://CptNope.github.io/sensor-test-pwa/
 
 View this demo on a secure (HTTPS) origin and install it on your phone.
 
@@ -74,7 +74,7 @@ sensor-test-pwa/
 
 1. **Fork or clone** this repository:
    ```bash
-   git clone https://github.com/<your-username>/sensor-test-pwa.git
+   git clone https://github.com/CptNope/sensor-test-pwa.git
    cd sensor-test-pwa
    ```
 
@@ -92,7 +92,7 @@ sensor-test-pwa/
    - Set **Source** to `main` branch, `/ (root)` folder
    - Save; wait for the URL to publish
 
-5. Open `https://<your-username>.github.io/sensor-test-pwa/` over HTTPS.
+5. Open `https://CptNope.github.io/sensor-test-pwa/` over HTTPS.
 
 ---
 

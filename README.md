@@ -42,7 +42,7 @@ A minimal Progressive Web App (PWA) that demonstrates:
 
 ## Demo
 
-> **Live URL**: https://<your-github-username>.github.io/sensor-test-pwa/
+> **Live URL**: https://CptNope.github.io/sensor-test-pwa/
 
 View this demo on a secure (HTTPS) origin and install it on your phone.
 

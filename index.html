@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Sensor Test PWA</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body { font-family: sans-serif; padding:1rem; }
+    .sensor { margin-bottom:1rem; }
+    button { margin-right: 0.5rem; }
+    .status { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Sensor Test</h1>
+
+  <div id="accelerometer" class="sensor">
+    <h2>Accelerometer</h2>
+    <div>Status: <span class="status">—</span></div>
+    <div>Reading: <span class="reading">—</span></div>
+    <button class="btn-request">Enable</button>
+  </div>
+
+  <div id="gyroscope" class="sensor">
+    <h2>Gyroscope</h2>
+    <div>Status: <span class="status">—</span></div>
+    <div>Reading: <span class="reading">—</span></div>
+    <button class="btn-request">Enable</button>
+  </div>
+
+  <script>
+  // helper to update UI
+  function update(elem, { status, reading }) {
+    if (status !== undefined) elem.querySelector('.status').textContent = status;
+    if (reading !== undefined) elem.querySelector('.reading').textContent = reading;
+  }
+
+  // generic sensor setup
+  async function setupSensor(sensorName, SensorConstructor, eventNameFallback) {
+    const container = document.getElementById(sensorName);
+    const btn = container.querySelector('.btn-request');
+
+    // feature-detect
+    const isGeneric = ('AbsoluteOrientationSensor' in window) || (SensorConstructor in window);
+    const isFallback = eventNameFallback in window;
+
+    update(container, {
+      status: isGeneric || isFallback ? 'Supported' : 'Not supported'
+    });
+    if (!isGeneric && !isFallback) {
+      btn.disabled = true;
+      return;
+    }
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        // Permissions API (not yet standardized for all sensors)
+        if (navigator.permissions && SensorConstructor) {
+          const permStatus = await navigator.permissions.query({ name: sensorName });
+          if (permStatus.state === 'denied') {
+            update(container, { status: 'Permission denied' });
+            return;
+          }
+        }
+
+        if (SensorConstructor) {
+          // Generic Sensor API
+          const sensor = new window[SensorConstructor]();
+          sensor.addEventListener('reading', () => {
+            const vals = [sensor.x, sensor.y, sensor.z].map(n => n.toFixed(2)).join(', ');
+            update(container, { status: 'Working', reading: vals });
+          });
+          sensor.start();
+        } else {
+          // Fallback: DeviceMotionEvent or DeviceOrientationEvent
+          window.addEventListener(eventNameFallback, ev => {
+            let vals;
+            if (eventNameFallback === 'devicemotion') {
+              vals = [ev.acceleration.x, ev.acceleration.y, ev.acceleration.z]
+                .map(n => n ? n.toFixed(2) : '0.00').join(', ');
+            } else {
+              vals = [ev.alpha, ev.beta, ev.gamma]
+                .map(n => n.toFixed(2)).join(', ');
+            }
+            update(container, { status: 'Working', reading: vals });
+          }, { once: true });
+          update(container, { status: 'Working (fallback)' });
+        }
+      } catch (err) {
+        update(container, { status: 'Error' });
+        console.error(err);
+      }
+    });
+  }
+
+  // register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js');
+  }
+
+  // wire up accelerometer & gyroscope
+  setupSensor(
+    'accelerometer',
+    'Accelerometer',    // or 'LinearAccelerationSensor'
+    'devicemotion'
+  );
+  setupSensor(
+    'gyroscope',
+    'Gyroscope',
+    'deviceorientation'
+  );
+  </script>
+</body>
+</html>

@@ -10,6 +10,21 @@
     .sensor { margin-bottom:1rem; }
     button { margin-right: 0.5rem; }
     .status { font-weight: bold; }
+    #install-container {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+    }
+    #btn-install {
+      display: none;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      border: none;
+      background: #3367D6;
+      color: white;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
   </style>
 </head>
 <body>
@@ -29,6 +44,11 @@
     <button class="btn-request">Enable</button>
   </div>
 
+  <!-- Install button container -->
+  <div id="install-container">
+    <button id="btn-install">Install App</button>
+  </div>
+
   <script>
   // helper to update UI
   function update(elem, { status, reading }) {
@@ -42,13 +62,13 @@
     const btn = container.querySelector('.btn-request');
 
     // feature-detect
-    const isGeneric = ('AbsoluteOrientationSensor' in window) || (SensorConstructor in window);
-    const isFallback = eventNameFallback in window;
+    const hasGeneric = SensorConstructor in window;
+    const hasFallback = eventNameFallback in window;
 
     update(container, {
-      status: isGeneric || isFallback ? 'Supported' : 'Not supported'
+      status: hasGeneric || hasFallback ? 'Supported' : 'Not supported'
     });
-    if (!isGeneric && !isFallback) {
+    if (!hasGeneric && !hasFallback) {
       btn.disabled = true;
       return;
     }
@@ -56,16 +76,16 @@
     btn.addEventListener('click', async () => {
       btn.disabled = true;
       try {
-        // Permissions API (not yet standardized for all sensors)
-        if (navigator.permissions && SensorConstructor) {
-          const permStatus = await navigator.permissions.query({ name: sensorName });
-          if (permStatus.state === 'denied') {
+        // Permissions API (optional)
+        if (navigator.permissions && hasGeneric) {
+          const perm = await navigator.permissions.query({ name: sensorName });
+          if (perm.state === 'denied') {
             update(container, { status: 'Permission denied' });
             return;
           }
         }
 
-        if (SensorConstructor) {
+        if (hasGeneric) {
           // Generic Sensor API
           const sensor = new window[SensorConstructor]();
           sensor.addEventListener('reading', () => {
@@ -84,7 +104,7 @@
               vals = [ev.alpha, ev.beta, ev.gamma]
                 .map(n => n.toFixed(2)).join(', ');
             }
-            update(container, { status: 'Working', reading: vals });
+            update(container, { status: 'Working (fallback)', reading: vals });
           }, { once: true });
           update(container, { status: 'Working (fallback)' });
         }
@@ -95,22 +115,35 @@
     });
   }
 
+  // PWA install prompt handling
+  let deferredPrompt;
+  const installBtn = document.getElementById('btn-install');
+
+  window.addEventListener('beforeinstallprompt', e => {
+    // Prevent the mini-infobar from appearing on mobile
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.style.display = 'inline-block';
+  });
+
+  installBtn.addEventListener('click', async () => {
+    installBtn.disabled = true;
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+    console.log('Install outcome:', choice.outcome);
+    deferredPrompt = null;
+    installBtn.style.display = 'none';
+  });
+
   // register service worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./service-worker.js');
   }
 
   // wire up accelerometer & gyroscope
-  setupSensor(
-    'accelerometer',
-    'Accelerometer',    // or 'LinearAccelerationSensor'
-    'devicemotion'
-  );
-  setupSensor(
-    'gyroscope',
-    'Gyroscope',
-    'deviceorientation'
-  );
+  setupSensor('accelerometer', 'Accelerometer', 'devicemotion');
+  setupSensor('gyroscope',     'Gyroscope',     'deviceorientation');
   </script>
 </body>
 </html>
